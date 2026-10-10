@@ -125,15 +125,100 @@ def _normalize_markdown(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
-def _html_to_text(html: str | bytes) -> str:
+def _html_to_text(html: str | bytes, mark_headings: bool = False) -> str:
     soup = BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "nav", "noscript"]):
+    for tag in soup(["head", "script", "style", "nav", "noscript", "form", "header", "footer"]):
         tag.decompose()
+    if mark_headings:
+        for heading in soup.find_all(re.compile(r"^h[1-6]$")):
+            heading.replace_with(f"\n\n# {heading.get_text(' ', strip=True)}\n\n")
     for br in soup.find_all("br"):
         br.replace_with("\n")
     for tag in soup.find_all(["p", "div", "section", "li", "blockquote", "h1", "h2", "h3", "h4", "pre"]):
         tag.append("\n")
     return _normalize(soup.get_text(" "))
+
+
+_LIBRU_DAMAGED_WORD = re.compile(r"(?<![\w@/])[A-Za-z@\[\\\]^_`{|}~\x7f]{3,}(?![\w/])")
+
+
+def _repair_libru_words(text: str) -> str:
+    """Recover Windows-1251 words whose high bits were lost in old Lib.ru files.
+
+    This is deliberately limited to Russian Lib.ru prose with several damaged
+    words. Unmarked Latin tokens are repaired only if the resulting Russian word
+    also occurs intact in the same book; English names and Roman numerals survive.
+    """
+    russian_words = set(re.findall(r"[а-яё]+", text.lower()))
+    russian_letters = sum(len(word) for word in re.findall(r"[А-Яа-яЁё]+", text))
+    latin_letters = sum(ch.isascii() and ch.isalpha() for ch in text)
+    if russian_letters < 30 or russian_letters < latin_letters * 2:
+        return text
+
+    def restored(token: str) -> str:
+        return bytes(ord(ch) | 0x80 for ch in token).decode("cp1251")
+
+    def has_damage_marker(token: str) -> bool:
+        return any(not ch.isalpha() for ch in token)
+
+    tokens = {match.group() for match in _LIBRU_DAMAGED_WORD.finditer(text)}
+    evidence = [token for token in tokens if has_damage_marker(token) and _text_quality_score(restored(token)) > 0]
+    if len(evidence) < 2:
+        return text
+
+    def repair(match: re.Match[str]) -> str:
+        token = match.group()
+        value = restored(token)
+        if not re.fullmatch(r"[А-Я]?[а-я]+", value):
+            return token
+        if value.lower() in russian_words or (has_damage_marker(token) and _text_quality_score(value) > 0):
+            return value
+        return token
+
+    return _LIBRU_DAMAGED_WORD.sub(repair, text)
+
+
+def _parse_libru_html(soup: BeautifulSoup) -> tuple[str | None, str | None, list[dict]] | None:
+    # Lib.ru serves its .txt URLs as HTML, with nested <pre> elements and a
+    # format selector. Do not apply these source-specific rules to other books.
+    selector = soup.find("select", attrs={"name": "format"})
+    if not selector or "lib.ru html" not in selector.get_text(" ").lower():
+        return None
+    heading = soup.find(["h1", "h2"])
+    content = heading.find_parent("pre") if heading else None
+    if content is None:
+        return None
+
+    title = heading.get_text(" ", strip=True) or None
+    heading.decompose()
+    for footer in reversed(content.find_all("pre")):
+        if footer.find("small") and "Last-modified:" in footer.get_text():
+            footer.decompose()
+    text = _html_to_text(str(content), mark_headings=True)
+    # Only discard the delimited bibliographic block at the start. An author's
+    # preface or an epigraph after it remains part of the book.
+    metadata = re.match(r"\A\s*-{10,}\s*\n.*?\n-{10,}[^\S\n]*(?:\n|$)", text, flags=re.S)
+    if metadata and re.search(r"перевод|\bOCR\b", metadata.group(), flags=re.I):
+        text = text[metadata.end():]
+
+    # Hard-wrapped lines inside <pre> belong to one paragraph. Indentation marks
+    # the next paragraph (including dialogue), while HTML headings stay separate.
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    for line in text.splitlines():
+        value = line.strip()
+        if not value or value.startswith("# ") or (paragraph and re.match(r"\s{3,}\S", line)):
+            if paragraph:
+                blocks.append(" ".join(paragraph))
+                paragraph = []
+        if value.startswith("# "):
+            blocks.append(value)
+        elif value:
+            paragraph.append(re.sub(r"[ \t]+", " ", value))
+    if paragraph:
+        blocks.append(" ".join(paragraph))
+    text = _repair_libru_words("\n\n".join(blocks))
+    return title, None, _split_text_into_chapters(text, content_format="plain", preserve_preface=True)
 
 
 def _looks_like_heading(line: str) -> bool:
@@ -151,7 +236,9 @@ def _looks_like_heading(line: str) -> bool:
     return len(words) <= 8 and value.isupper() and any(ch.isalpha() for ch in value)
 
 
-def _split_text_into_chapters(text: str, target_size: int = 18000, content_format: str = "plain") -> list[dict]:
+def _split_text_into_chapters(
+    text: str, target_size: int = 18000, content_format: str = "plain", preserve_preface: bool = False,
+) -> list[dict]:
     text = _normalize(text)
     if not text:
         raise ParseError("В файле не найден читаемый текст")
@@ -164,7 +251,7 @@ def _split_text_into_chapters(text: str, target_size: int = 18000, content_forma
         first = heading_positions[0]
         if first > 0:
             preface = _normalize("\n".join(lines[:first]))
-            if len(preface) > 150:
+            if preface and (preserve_preface or len(preface) > 150):
                 chapters.append({"title": "Начало", "text": preface, "format": content_format})
         for pos_index, start in enumerate(heading_positions):
             end = heading_positions[pos_index + 1] if pos_index + 1 < len(heading_positions) else len(lines)
@@ -259,6 +346,9 @@ def _parse_txt_or_md(data: bytes, ext: str, encoding_hint: str | None = None) ->
     stripped = text.lstrip().lower()
     if stripped.startswith("<!doctype html") or stripped.startswith("<html") or "<body" in stripped[:3000]:
         soup = BeautifulSoup(text, "html.parser")
+        libru_book = _parse_libru_html(soup)
+        if libru_book is not None:
+            return libru_book
         title = None
         author = None
         title_tag = soup.find("title")
@@ -270,7 +360,7 @@ def _parse_txt_or_md(data: bytes, ext: str, encoding_hint: str | None = None) ->
         author_meta = soup.find("meta", attrs={"name": re.compile(r"^author$", re.I)})
         if author_meta and author_meta.get("content"):
             author = str(author_meta.get("content")).strip() or None
-        text = _html_to_text(text)
+        text = _html_to_text(text, mark_headings=True)
         return title, author, _split_text_into_chapters(text, content_format="plain")
 
     if ext in {".md", ".markdown"}:
