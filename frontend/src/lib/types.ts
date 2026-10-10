@@ -31,7 +31,7 @@ export type Bookmark = {
 }
 
 export type ReaderSettings = {
-  theme: 'paper' | 'ivory' | 'sepia' | 'night' | 'midnight'
+  theme: 'paper' | 'ivory' | 'sepia' | 'night' | 'midnight' | 'dusk'
   fontFamily: 'literata' | 'georgia' | 'sans' | 'humanist' | 'mono'
   fontSize: number
   lineHeight: number
@@ -40,6 +40,16 @@ export type ReaderSettings = {
   paragraphSpacing: number
   textAlign: 'left' | 'justify'
   focusMode: boolean
+}
+
+export type AppTheme = 'system' | 'light' | 'dark'
+export type AppStyle = 'soft' | 'glass' | 'liquid' | 'minimal'
+export type ResolvedTheme = 'light' | 'dark'
+export type PageTheme = ReaderSettings['theme']
+export type AppearancePreferences = ReaderSettings & {
+  uiTheme?: AppTheme
+  uiStyle?: AppStyle
+  pageThemes?: Partial<Record<ResolvedTheme, PageTheme>>
 }
 
 

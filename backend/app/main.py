@@ -260,7 +260,7 @@ async def tts_narration(payload: TtsSpeechIn):
     )
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
 
