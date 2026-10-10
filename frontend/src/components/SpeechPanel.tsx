@@ -10,6 +10,8 @@ type SpeechStatus = 'idle' | 'loading' | 'speaking' | 'paused'
 type StartMode = 'beginning' | 'visible' | 'selected'
 type PreparedAudio = { audio: HTMLAudioElement; url: string }
 const FIRST_CHUNK_LENGTH = 240
+const CHUNK_LENGTH = 600
+const PREFETCH_CHUNKS = 2
 
 function prepareAudio(blob: Blob): PreparedAudio {
   const url = URL.createObjectURL(blob)
@@ -164,9 +166,9 @@ export default function SpeechPanel({ open, title, contentRef, onClose, onOpen, 
     bufferRef.current!.cancelPending()
     const from = startMode === 'visible' ? firstVisibleSpeechElement(contentRef.current) : startMode === 'selected' ? startElement : null
     if (startMode !== 'beginning' && !from) return
-    const first = collectSpeechChunks(contentRef.current, 1250, from, FIRST_CHUNK_LENGTH, 1)[0]
-    // Opening the narrator gives the first short fragment a head start.
-    if (first) void bufferRef.current!.load(first.text, selectedVoice.id).catch(() => undefined)
+    // Warm the following fragments too, so the short opener doesn't outrun synthesis.
+    const chunks = collectSpeechChunks(contentRef.current, CHUNK_LENGTH, from, FIRST_CHUNK_LENGTH, PREFETCH_CHUNKS + 1)
+    chunks.forEach((chunk) => { void bufferRef.current!.load(chunk.text, selectedVoice.id).catch(() => undefined) })
   }, [open, selectedVoice?.id, startMode, startElement, contentRef])
 
   useEffect(() => {
@@ -248,7 +250,7 @@ export default function SpeechPanel({ open, title, contentRef, onClose, onOpen, 
       setError('Прокрутите страницу к нужному тексту или выберите слово для начала чтения.')
       return
     }
-    const chunks = collectSpeechChunks(contentRef.current, 1250, from, FIRST_CHUNK_LENGTH)
+    const chunks = collectSpeechChunks(contentRef.current, CHUNK_LENGTH, from, FIRST_CHUNK_LENGTH)
     if (!chunks.length) { setError('Выберите другое слово для начала чтения.'); return }
     cancelPlayback(true)
     setProgress(0)
@@ -272,8 +274,7 @@ export default function SpeechPanel({ open, title, contentRef, onClose, onOpen, 
       pending.set(index, promise)
     }
     try {
-      prepare(0)
-      prepare(1)
+      for (let index = 0; index <= PREFETCH_CHUNKS; index += 1) prepare(index)
       for (let index = 0; index < chunks.length; index += 1) {
         if (token !== runRef.current) return
         setStatus('loading')
@@ -282,7 +283,7 @@ export default function SpeechPanel({ open, title, contentRef, onClose, onOpen, 
         pending.delete(index)
         if (token !== runRef.current) return
         // Keep two fragments synthesized and preloaded ahead of playback.
-        prepare(index + 2)
+        prepare(index + PREFETCH_CHUNKS)
         if (!words.length) setError('Сервис не вернул метки слов. Чтение продолжится без подсветки.')
         await playAudio(prepared, token, words,
           (fraction) => setProgress(Math.round(((completedLength + fraction * chunk.text.length) / totalLength) * 100)))
