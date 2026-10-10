@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Bookmark as BookmarkIcon, ChevronLeft, ChevronRight, Expand, List, Menu,
+  ArrowLeft, Bookmark as BookmarkIcon, ChevronLeft, ChevronRight, Expand, List,
   Search, Settings2, Trash2, X, BookOpen, Clock3, Keyboard, Check, PanelLeftClose, Volume2, Minimize2, Shrink
 } from 'lucide-react'
 import ReaderSettingsPanel from '../components/ReaderSettingsPanel'
@@ -12,13 +12,8 @@ import LoadingScreen from '../components/LoadingScreen'
 import { api } from '../lib/api'
 import type { Bookmark, BookDetail, ReaderSettings } from '../lib/types'
 import { estimateMinutes, formatDuration, progressPercent, splitParagraphs } from '../lib/text'
-import { saveReaderTheme, storedReaderTheme } from '../lib/readerTheme'
+import { useAppearance } from '../lib/theme'
 import { currentFullscreenElement, enterFullscreen, leaveFullscreen } from '../lib/fullscreen'
-
-const DEFAULT_SETTINGS: ReaderSettings = {
-  theme: 'paper', fontFamily: 'literata', fontSize: 19, lineHeight: 1.75,
-  contentWidth: 760, letterSpacing: 0, paragraphSpacing: 1, textAlign: 'left', focusMode: false
-}
 
 type SideTab = 'contents' | 'bookmarks' | 'search'
 
@@ -34,7 +29,7 @@ export default function ReaderPage() {
   const [book, setBook] = useState<BookDetail | null>(null)
   const [chapterIndex, setChapterIndex] = useState(0)
   const [scrollPercent, setScrollPercent] = useState(0)
-  const [settings, setSettings] = useState<ReaderSettings>(() => ({ ...DEFAULT_SETTINGS, theme: storedReaderTheme() }))
+  const { settings, setSettings, preferencesLoaded } = useAppearance()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sideOpen, setSideOpen] = useState(false)
   const [sideTab, setSideTab] = useState<SideTab>('contents')
@@ -58,7 +53,7 @@ export default function ReaderPage() {
     closePanels()
     setExpanded(false)
     setSettings((s) => ({ ...s, focusMode: false }))
-  }, [closePanels])
+  }, [closePanels, setSettings])
   const applySettings = (next: ReaderSettings) => {
     if (next.focusMode && !settings.focusMode) closePanels()
     if (!next.focusMode && settings.focusMode) setExpanded(false)
@@ -116,11 +111,10 @@ export default function ReaderPage() {
 
   useEffect(() => {
     if (!Number.isFinite(id)) return
-    Promise.all([api.book(id), api.preferences(), api.bookmarks(id)])
-      .then(([loadedBook, prefs, marks]) => {
+    Promise.all([api.book(id), api.bookmarks(id)])
+      .then(([loadedBook, marks]) => {
         setBook(loadedBook)
         setBookmarks(marks)
-        setSettings({ ...DEFAULT_SETTINGS, ...prefs.settings })
         setChapterIndex(Math.min(loadedBook.progress?.chapter_index ?? 0, Math.max(0, loadedBook.chapters.length - 1)))
         setScrollPercent(loadedBook.progress?.scroll_percent ?? 0)
       })
@@ -129,7 +123,7 @@ export default function ReaderPage() {
   }, [id])
 
   useEffect(() => {
-    if (!book || restored.current) return
+    if (!book || !preferencesLoaded || restored.current) return
     const node = scrollerRef.current
     if (!node) return
     requestAnimationFrame(() => {
@@ -137,14 +131,7 @@ export default function ReaderPage() {
       node.scrollTop = max > 0 ? max * ((book.progress?.scroll_percent ?? 0) / 100) : 0
       restored.current = true
     })
-  }, [book, chapterIndex])
-
-  useEffect(() => {
-    if (loading) return
-    saveReaderTheme(settings.theme)
-    const timer = window.setTimeout(() => api.savePreferences(settings).catch(() => undefined), 450)
-    return () => clearTimeout(timer)
-  }, [settings, loading])
+  }, [book, chapterIndex, preferencesLoaded])
 
   const persistProgress = useCallback((chapter = chapterIndex, percent = scrollPercent) => {
     if (!book) return
@@ -199,7 +186,7 @@ export default function ReaderPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [changeChapter, chapterIndex, closePanels, exitFocus])
+  }, [changeChapter, chapterIndex, closePanels, exitFocus, setSettings])
 
   const overall = book ? progressPercent(chapterIndex, book.chapters.length, scrollPercent) : 0
   const chapter = book?.chapters[chapterIndex]
@@ -230,7 +217,7 @@ export default function ReaderPage() {
     setBookmarks((prev) => [mark, ...prev])
   }
 
-  if (loading) return <LoadingScreen readerTheme={settings.theme} />
+  if (loading || !preferencesLoaded) return <LoadingScreen readerTheme={settings.theme} />
   if (error || !book || !chapter) return (
     <div className={`reader-error theme-${settings.theme}`}><BookOpen size={34} /><h2>Не удалось открыть книгу</h2><p>{error || 'Книга не найдена'}</p><button className="btn primary" onClick={() => navigate('/')}>В библиотеку</button></div>
   )
@@ -262,7 +249,6 @@ export default function ReaderPage() {
       <header className="reader-topbar">
         <div className="reader-top-left">
           <button className="icon-btn reader-back" onClick={() => navigate('/')} title="В библиотеку"><ArrowLeft size={19} /></button>
-          <button className="icon-btn mobile-only" onClick={() => setSideOpen(true)} title="Оглавление"><Menu size={19} /></button>
           <div className="reader-title-block"><strong>{book.title}</strong><span>{chapter.title}</span></div>
         </div>
         <div className="reader-top-center"><span>{Math.round(overall)}%</span><i />{savedPulse ? <span className="save-state"><Check size={12} /> сохранено</span> : <span>глава {chapterIndex + 1} из {book.chapters.length}</span>}</div>
@@ -300,7 +286,7 @@ export default function ReaderPage() {
                   <button className="bookmark-main" onClick={() => changeChapter(mark.chapter_index, mark.scroll_percent)}><span>Глава {mark.chapter_index + 1} · {Math.round(mark.scroll_percent)}%</span><strong>{mark.label || book.chapters[mark.chapter_index]?.title}</strong>{mark.excerpt && <p>{mark.excerpt}</p>}</button>
                   <button className="bookmark-delete" onClick={async () => { await api.removeBookmark(mark.id); setBookmarks((prev) => prev.filter((b) => b.id !== mark.id)) }}><Trash2 size={14} /></button>
                 </div>
-              ))}</div> : <div className="panel-empty"><BookmarkIcon size={24} /><strong>Закладок пока нет</strong><span>Добавляйте их кнопкой в верхней панели.</span></div>
+              ))}</div> : <div className="panel-empty"><BookmarkIcon size={24} /><strong>Закладок пока нет</strong><span>Нажмите кнопку с иконкой закладки, чтобы сохранить место в книге.</span></div>
             )}
             {sideTab === 'search' && (
               <div className="book-search">
