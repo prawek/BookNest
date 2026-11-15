@@ -23,8 +23,8 @@
         root.dataset.uiStyle = ['soft', 'glass', 'liquid', 'minimal'].includes(style) ? style : 'liquid'
         root.dataset.resolvedTheme = dark ? 'dark' : 'light'
         root.style.colorScheme = dark ? 'dark' : 'light'
-        const pages = { paper: ['#f4efe5', '#2f2c27'], ivory: ['#ece8dc', '#292823'], sepia: ['#d9cbb4', '#4b3c2e'], night: ['#1b1c1b', '#d9d7d0'], midnight: ['#111821', '#d6dce1'] }
-        const allowed = dark ? ['night', 'midnight'] : ['paper', 'ivory', 'sepia']
+        const pages = { paper: ['#f4efe5', '#2f2c27'], ivory: ['#ece8dc', '#292823'], sepia: ['#d9cbb4', '#4b3c2e'], night: ['#1b1c1b', '#d9d7d0'], midnight: ['#111821', '#d6dce1'], dusk: ['#231d1b', '#e4d5c5'] }
+        const allowed = dark ? ['night', 'midnight', 'dusk'] : ['paper', 'ivory', 'sepia']
         const saved = pageThemes[dark ? 'dark' : 'light']
         const pageTheme = allowed.includes(saved) ? saved : allowed.includes(readerTheme) ? readerTheme : allowed[0]
         root.dataset.pageTheme = pageTheme

@@ -146,6 +146,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .theme-sepia, :root[data-page-theme="sepia"] { --reader-bg: #d9cbb4; --reader-page: #eee2cb; --reader-ink: #4b3c2e; --reader-muted: #887461; --reader-border: rgba(81,59,38,.13); --reader-ui: rgba(231,218,194,.93); --reader-hover: rgba(95,72,45,.08); --reader-accent: #806143; }
 .theme-night, :root[data-page-theme="night"] { --reader-bg: #1b1c1b; --reader-page: #222322; --reader-ink: #d9d7d0; --reader-muted: #878984; --reader-border: rgba(255,255,255,.08); --reader-ui: rgba(28,29,28,.92); --reader-hover: rgba(255,255,255,.06); --reader-accent: #8fae9d; }
 .theme-midnight, :root[data-page-theme="midnight"] { --reader-bg: #111821; --reader-page: #17212b; --reader-ink: #d6dce1; --reader-muted: #7f8b96; --reader-border: rgba(255,255,255,.075); --reader-ui: rgba(16,24,32,.94); --reader-hover: rgba(255,255,255,.06); --reader-accent: #83a8b3; }
+.theme-dusk, :root[data-page-theme="dusk"] { --reader-bg: #231d1b; --reader-page: #2d2522; --reader-ink: #e4d5c5; --reader-muted: #a38e7e; --reader-border: rgba(228,213,197,.1); --reader-ui: rgba(35,29,27,.94); --reader-hover: rgba(228,213,197,.07); --reader-accent: #ccaa85; }
 .font-literata .chapter-text, .font-literata .reading-page > h1 { font-family: Charter, "Bitstream Charter", "Sitka Text", Georgia, serif; }
 .font-georgia .chapter-text, .font-georgia .reading-page > h1 { font-family: Georgia, "Times New Roman", serif; }
 .font-humanist .chapter-text, .font-humanist .reading-page > h1 { font-family: "Trebuchet MS", Calibri, Candara, sans-serif; }
@@ -239,6 +240,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .theme-chip i { width: 100%; aspect-ratio: 1.1; display: block; border-radius: 7px; border: 1px solid rgba(0,0,0,.1); box-shadow: inset 0 0 0 3px rgba(255,255,255,.18); }
 .theme-chip span { display: block; font-size: 8px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .theme-chip.paper i { background: #fbf8f0; } .theme-chip.ivory i { background: #fffdf5; } .theme-chip.sepia i { background: #eee2cb; } .theme-chip.night i { background: #222322; } .theme-chip.midnight i { background: #17212b; }
+.theme-chip.dusk i { background: #2d2522; }
 .theme-chip.active { border-color: var(--reader-accent); color: var(--reader-ink); }
 .font-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 11px; }
 .font-choice { min-width: 0; min-height: 65px; border: 1px solid var(--reader-border); border-radius: 9px; background: transparent; color: var(--reader-ink); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }

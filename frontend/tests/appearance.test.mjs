@@ -11,7 +11,7 @@ test('light and dark modes offer only matching page palettes', () => {
   for (const mode of ['light', 'dark']) {
     const state = createAppearanceState({ uiTheme: mode, theme: mode === 'light' ? 'midnight' : 'sepia' })
     const choices = PAGE_THEMES.filter((item) => item.mode === resolveTheme(state.theme, state.systemDark))
-    assert.deepEqual(choices.map((item) => item.key), mode === 'light' ? ['paper', 'ivory', 'sepia'] : ['night', 'midnight'])
+    assert.deepEqual(choices.map((item) => item.key), mode === 'light' ? ['paper', 'ivory', 'sepia'] : ['night', 'midnight', 'dusk'])
     assert.ok(choices.some((item) => item.key === currentReaderSettings(state).theme))
   }
 })
@@ -57,11 +57,11 @@ test('saved preferences round-trip both palettes, mode, style and typography', (
   let state = createAppearanceState({ uiTheme: 'light', uiStyle: 'glass', fontFamily: 'mono', fontSize: 24 })
   state = selectPage(state, 'sepia')
   state = appearanceReducer(state, { type: 'theme', theme: 'dark' })
-  state = selectPage(state, 'midnight')
+  state = selectPage(state, 'dusk')
   const saved = { ...currentReaderSettings(state), uiTheme: state.theme, uiStyle: state.style, pageThemes: state.pageThemes }
   const loaded = createAppearanceState(saved)
   assert.deepEqual(currentReaderSettings(loaded), currentReaderSettings(state))
-  assert.deepEqual(loaded.pageThemes, { light: 'sepia', dark: 'midnight' })
+  assert.deepEqual(loaded.pageThemes, { light: 'sepia', dark: 'dusk' })
   assert.equal(loaded.theme, 'dark')
   assert.equal(loaded.style, 'glass')
 })
@@ -101,8 +101,11 @@ test('the pre-React loading screen selects the same palette on book and home rou
   const cases = [
     { mode: 'light', page: 'sepia', pages: {} },
     { mode: 'dark', page: 'midnight', pages: {} },
+    { mode: 'dark', page: 'dusk', pages: {} },
+    { mode: 'dark', page: 'night', pages: { dark: 'dusk' } },
     { mode: 'light', page: 'midnight', pages: { light: 'ivory', dark: 'midnight' } },
     { mode: 'system', page: 'sepia', pages: { light: 'sepia', dark: 'night' } },
+    { mode: 'system', page: 'sepia', pages: { light: 'sepia', dark: 'dusk' } },
     { mode: 'dark', page: 'midnight', pages: { dark: 'sepia' } },
   ]
   for (const saved of cases) for (const dark of [false, true]) for (const path of ['/', '/read/42']) {

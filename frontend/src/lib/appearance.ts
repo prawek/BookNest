@@ -10,6 +10,7 @@ export const PAGE_THEMES: { key: PageTheme; name: string; mode: ResolvedTheme; b
   { key: 'sepia', name: 'Сепия', mode: 'light', background: '#d9cbb4' },
   { key: 'night', name: 'Ночь', mode: 'dark', background: '#1b1c1b' },
   { key: 'midnight', name: 'Полночь', mode: 'dark', background: '#111821' },
+  { key: 'dusk', name: 'Сумрак', mode: 'dark', background: '#231d1b' },
 ]
 export type AppearanceState = {
   theme: AppTheme

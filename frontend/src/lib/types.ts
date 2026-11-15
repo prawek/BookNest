@@ -31,7 +31,7 @@ export type Bookmark = {
 }
 
 export type ReaderSettings = {
-  theme: 'paper' | 'ivory' | 'sepia' | 'night' | 'midnight'
+  theme: 'paper' | 'ivory' | 'sepia' | 'night' | 'midnight' | 'dusk'
   fontFamily: 'literata' | 'georgia' | 'sans' | 'humanist' | 'mono'
   fontSize: number
   lineHeight: number
